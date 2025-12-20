@@ -12,6 +12,8 @@ import androidx.media3.common.MediaMetadata
 import com.rcudev.player_service.service.PlayerEvent
 import com.rcudev.player_service.service.SimpleMediaServiceHandler
 import com.rcudev.player_service.service.SimpleMediaState
+import com.rcudev.simplemediaplayer.common.StreamConfig
+import com.rcudev.simplemediaplayer.common.StreamPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +25,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SimpleMediaViewModel @Inject constructor(
     private val simpleMediaServiceHandler: SimpleMediaServiceHandler,
+    private val streamPreferences: StreamPreferences,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -31,11 +34,17 @@ class SimpleMediaViewModel @Inject constructor(
     var progressString by savedStateHandle.saveable { mutableStateOf("00:00") }
     var isPlaying by savedStateHandle.saveable { mutableStateOf(false) }
 
+    // Selected quality index persisted in preferences
+    var selectedQualityIndex by savedStateHandle.saveable { mutableStateOf(StreamConfig.DEFAULT_INDEX) }
+
     private val _uiState = MutableStateFlow<UIState>(UIState.Initial)
     val uiState = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
+            // Load persisted selection
+            selectedQualityIndex = streamPreferences.getSelectedIndex()
+
             loadData()
 
             simpleMediaServiceHandler.simpleMediaState.collect { mediaState ->
@@ -87,35 +96,49 @@ class SimpleMediaViewModel @Inject constructor(
         progressString = formatDuration(currentProgress)
     }
 
+    // Expose selected quality label for UI
+    val selectedQualityLabel: String
+        get() = StreamConfig.OPTIONS.getOrNull(selectedQualityIndex)?.first ?: "Standard"
+
     private fun loadData() {
+        // Build media item from selected stream
+        val (label, url) = StreamConfig.OPTIONS.getOrNull(selectedQualityIndex)
+            ?: StreamConfig.OPTIONS[StreamConfig.DEFAULT_INDEX]
+
         val mediaItem = MediaItem.Builder()
-            .setUri("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3")
+            .setUri(url)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
-                    .setArtworkUri(Uri.parse("https://i.pinimg.com/736x/4b/02/1f/4b021f002b90ab163ef41aaaaa17c7a4.jpg"))
-                    .setAlbumTitle("SoundHelix")
-                    .setDisplayTitle("Song 1")
+                    .setArtworkUri(StreamConfig.ARTWORK_URI)
+                    .setAlbumTitle("Blur FM")
+                    .setDisplayTitle("Blur FM — $label")
                     .build()
             ).build()
 
-        //val mediaItemList = mutableListOf<MediaItem>()
-        //(1..17).forEach {
-        //    mediaItemList.add(
-        //        MediaItem.Builder()
-        //            .setUri("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-$it.mp3")
-        //            .setMediaMetadata(MediaMetadata.Builder()
-        //                .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
-        //                .setArtworkUri(Uri.parse("https://cdns-images.dzcdn.net/images/cover/1fddc1ab0535ee34189dc4c9f5f87bf9/264x264.jpg"))
-        //                .setAlbumTitle("SoundHelix")
-        //                .setDisplayTitle("Song $it")
-        //                .build()
-        //            ).build()
-        //    )
-        //}
-
         simpleMediaServiceHandler.addMediaItem(mediaItem)
-        //simpleMediaServiceHandler.addMediaItemList(mediaItemList)
+    }
+
+    // Called from UI when the user selects a different quality
+    fun onQualitySelected(index: Int) = viewModelScope.launch {
+        if (index < 0 || index >= StreamConfig.OPTIONS.size) return@launch
+        selectedQualityIndex = index
+        streamPreferences.setSelectedIndex(index)
+
+        val (label, url) = StreamConfig.OPTIONS[index]
+        val mediaItem = MediaItem.Builder()
+            .setUri(url)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setFolderType(MediaMetadata.FOLDER_TYPE_ALBUMS)
+                    .setArtworkUri(StreamConfig.ARTWORK_URI)
+                    .setAlbumTitle("Blur FM")
+                    .setDisplayTitle("Blur FM — $label")
+                    .build()
+            ).build()
+
+        // Replace current media item and start playback on the new stream
+        simpleMediaServiceHandler.replaceMediaItemAndPlay(mediaItem)
     }
 
 }
