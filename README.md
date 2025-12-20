@@ -57,3 +57,4 @@ Besides, it is in charge of arranging the necessary methods to add the MediaItem
 ## Conclusions
 
 A simple and clear playback service with notifications, with a reactive architecture. I will continue checking improvements, this is still an imperfect approach (nothing is perfect), improvable but that provides what is necessary without complications.
+# blurfm-app-v5
