@@ -1,26 +1,33 @@
 package com.rcudev.simplemediaplayer.main
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.rcudev.simplemediaplayer.R
 import com.rcudev.simplemediaplayer.common.StreamConfig
-import com.rcudev.simplemediaplayer.common.ui.Destination
 import com.rcudev.simplemediaplayer.common.ui.SimpleMediaViewModel
+import com.rcudev.simplemediaplayer.common.ui.UIEvent
 import com.rcudev.simplemediaplayer.common.ui.UIState
-import com.rcudev.simplemediaplayer.common.ui.components.SimpleMediaPlayerUI
 
 @Composable
 internal fun SimpleMediaScreen(
@@ -31,81 +38,231 @@ internal fun SimpleMediaScreen(
     val state = vm.uiState.collectAsStateWithLifecycle()
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize()
     ) {
         when (state.value) {
-            UIState.Initial -> CircularProgressIndicator(
-                modifier = Modifier
-                    .size(30.dp)
-                    .align(Alignment.Center)
-            )
+            UIState.Initial -> {
+                // Gradient background even while loading
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF1A237E),
+                                    Color(0xFF283593),
+                                    Color(0xFF1E88E5)
+                                )
+                            )
+                        )
+                )
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .align(Alignment.Center),
+                    color = Color.White
+                )
+            }
             is UIState.Ready -> {
-                LaunchedEffect(true) { // This is only call first time
+                LaunchedEffect(true) {
                     startService()
                 }
-
-                ReadyContent(vm = vm, navController = navController)
+                BlurFMRadioScreen(vm = vm)
             }
         }
-
     }
 }
 
 @Composable
-private fun ReadyContent(
-    vm: SimpleMediaViewModel,
-    navController: NavController,
-) {
+private fun BlurFMRadioScreen(vm: SimpleMediaViewModel) {
+    var showQualityDialog by remember { mutableStateOf(false) }
 
-    var expanded by remember { mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-
-        // Quality selector
-        Box(modifier = Modifier
-            .wrapContentSize(Alignment.TopStart)
-            .padding(bottom = 12.dp)) {
-            Text(
-                text = "Quality: ${vm.selectedQualityLabel}",
-                modifier = Modifier
-                    .clickable { expanded = true }
-                    .padding(8.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1A237E),
+                        Color(0xFF283593),
+                        Color(0xFF1E88E5)
+                    )
+                )
             )
-
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                StreamConfig.OPTIONS.forEachIndexed { index, pair ->
-                    DropdownMenuItem(text = { Text(pair.first) }, onClick = {
-                        expanded = false
-                        vm.onQualitySelected(index)
-                    })
-                }
-            }
-        }
-
-        SimpleMediaPlayerUI(
-            durationString = vm.formatDuration(vm.duration),
-            playResourceProvider = {
-                if (vm.isPlaying) android.R.drawable.ic_media_pause
-                else android.R.drawable.ic_media_play
-            },
-            progressProvider = { Pair(vm.progress, vm.progressString) },
-            onUiEvent = vm::onUIEvent,
+    ) {
+        // Dark overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.3f))
         )
 
-        FloatingActionButton(
-            onClick = { navController.navigate(Destination.Secondary.route) },
-            modifier = Modifier.padding(top = 16.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "Navigate to Secondary",
+            // Top bar: Logo + Quality button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(modifier = Modifier.width(48.dp))
+
+                // Logo centered
+                Image(
+                    painter = painterResource(R.drawable.blur_fm_logo),
+                    contentDescription = "Blur FM Logo",
+                    modifier = Modifier
+                        .height(60.dp)
+                        .weight(1f),
+                    contentScale = ContentScale.Fit
+                )
+
+                // Quality/Settings button
+                IconButton(
+                    onClick = { showQualityDialog = true },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Quality Settings",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Center: Cover Art
+            Card(
+                modifier = Modifier
+                    .size(280.dp)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.blur_fm_cover),
+                    contentDescription = "Album Cover",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Metadata: Title / Artist
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(horizontal = 16.dp)
+            ) {
+                Text(
+                    text = vm.streamTitle,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+
+                if (vm.streamArtist.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = vm.streamArtist,
+                        fontSize = 18.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Play / Stop Button
+            FloatingActionButton(
+                onClick = { vm.onUIEvent(UIEvent.PlayPause) },
+                modifier = Modifier.size(80.dp),
+                containerColor = Color.White,
+                shape = CircleShape
+            ) {
+                Icon(
+                    painter = painterResource(
+                        if (vm.isPlaying) android.R.drawable.ic_media_pause
+                        else android.R.drawable.ic_media_play
+                    ),
+                    contentDescription = if (vm.isPlaying) "Stop" else "Play",
+                    tint = Color(0xFF1E88E5),
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Quality label
+            Text(
+                text = "Quality: ${vm.selectedQualityLabel}",
+                fontSize = 14.sp,
+                color = Color.White.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center
             )
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
+
+    // Quality selector dialog
+    if (showQualityDialog) {
+        QualityDialog(
+            currentQuality = vm.selectedQualityIndex,
+            onDismiss = { showQualityDialog = false },
+            onQualitySelected = { index ->
+                vm.onQualitySelected(index)
+                showQualityDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun QualityDialog(
+    currentQuality: Int,
+    onDismiss: () -> Unit,
+    onQualitySelected: (Int) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Stream Quality") },
+        text = {
+            Column {
+                StreamConfig.OPTIONS.forEachIndexed { index, (label, _) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onQualitySelected(index) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = index == currentQuality,
+                            onClick = { onQualitySelected(index) }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = label)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }

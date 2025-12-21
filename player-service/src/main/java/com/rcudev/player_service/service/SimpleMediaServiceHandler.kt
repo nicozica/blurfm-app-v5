@@ -36,12 +36,19 @@ class SimpleMediaServiceHandler @Inject constructor(
     /**
      * Replace current media item with a new one and start playback immediately.
      * Used when the user changes stream quality.
+     * Stops current stream completely and reconnects to the new URL.
      */
     fun replaceMediaItemAndPlay(mediaItem: MediaItem) {
+        // Stop current stream completely
+        player.stop()
+        player.clearMediaItems()
+
+        // Set new stream and reconnect to live
         player.setMediaItem(mediaItem)
         player.prepare()
         player.play()
         _simpleMediaState.value = SimpleMediaState.Playing(isPlaying = true)
+
         // Restart progress updates
         try {
             @OptIn(DelicateCoroutinesApi::class)

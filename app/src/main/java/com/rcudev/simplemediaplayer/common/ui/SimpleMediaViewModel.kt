@@ -37,6 +37,10 @@ class SimpleMediaViewModel @Inject constructor(
     // Selected quality index persisted in preferences
     var selectedQualityIndex by savedStateHandle.saveable { mutableStateOf(StreamConfig.DEFAULT_INDEX) }
 
+    // Stream metadata (title/artist from ICY metadata if available)
+    var streamTitle by savedStateHandle.saveable { mutableStateOf("Blur FM") }
+    var streamArtist by savedStateHandle.saveable { mutableStateOf("") }
+
     private val _uiState = MutableStateFlow<UIState>(UIState.Initial)
     val uiState = _uiState.asStateFlow()
 

@@ -53,9 +53,15 @@ class SimpleMediaNotificationManager @Inject constructor(
             .build()
             .also {
                 it.setMediaSessionToken(mediaSession.sessionCompatToken)
-                it.setUseFastForwardActionInCompactView(true)
-                it.setUseRewindActionInCompactView(true)
+                // Disable all navigation controls for live radio
+                it.setUseFastForwardAction(false)
+                it.setUseRewindAction(false)
+                it.setUseFastForwardActionInCompactView(false)
+                it.setUseRewindActionInCompactView(false)
+                it.setUseNextAction(false)
+                it.setUsePreviousAction(false)
                 it.setUseNextActionInCompactView(false)
+                it.setUsePreviousActionInCompactView(false)
                 it.setPriority(NotificationCompat.PRIORITY_LOW)
                 it.setPlayer(player)
             }

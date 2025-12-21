@@ -11,7 +11,6 @@ import androidx.navigation.compose.rememberNavController
 import com.rcudev.player_service.service.SimpleMediaService
 import com.rcudev.simplemediaplayer.common.ui.theme.SimpleMediaPlayerTheme
 import com.rcudev.simplemediaplayer.main.SimpleMediaScreen
-import com.rcudev.simplemediaplayer.secondary.SecondaryScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -34,9 +33,6 @@ class SimpleMediaActivity : ComponentActivity() {
                             navController = navController,
                             startService = ::startService
                         )
-                    }
-                    composable(Destination.Secondary.route) {
-                        SecondaryScreen(vm = viewModel)
                     }
                 }
             }
