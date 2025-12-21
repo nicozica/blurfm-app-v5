@@ -2,8 +2,11 @@ package com.rcudev.player_service.service
 
 import android.annotation.SuppressLint
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Metadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.metadata.MetadataOutput
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,14 +19,28 @@ class SimpleMediaServiceHandler @Inject constructor(
     private val _simpleMediaState = MutableStateFlow<SimpleMediaState>(SimpleMediaState.Initial)
     val simpleMediaState = _simpleMediaState.asStateFlow()
 
+    // Flow for ICY metadata (Now Playing)
+    private val _icyMetadata = MutableStateFlow<String?>(null)
+    val icyMetadata = _icyMetadata.asStateFlow()
+
     private var job: Job? = null
+
+    // Track current media item for live stream reconnection
+    private var currentMediaItem: MediaItem? = null
 
     init {
         player.addListener(this)
         job = Job()
     }
 
+    /**
+     * Get current media item for live stream reconnection.
+     * Used by LiveStreamPlayer when play() is called after pause.
+     */
+    fun getCurrentMediaItem(): MediaItem? = currentMediaItem
+
     fun addMediaItem(mediaItem: MediaItem) {
+        currentMediaItem = mediaItem
         player.setMediaItem(mediaItem)
         player.prepare()
     }
@@ -31,6 +48,10 @@ class SimpleMediaServiceHandler @Inject constructor(
     fun addMediaItemList(mediaItemList: List<MediaItem>) {
         player.setMediaItems(mediaItemList)
         player.prepare()
+        // For live radio, we typically use single item
+        if (mediaItemList.isNotEmpty()) {
+            currentMediaItem = mediaItemList[0]
+        }
     }
 
     /**
@@ -39,6 +60,9 @@ class SimpleMediaServiceHandler @Inject constructor(
      * Stops current stream completely and reconnects to the new URL.
      */
     fun replaceMediaItemAndPlay(mediaItem: MediaItem) {
+        // Track new media item
+        currentMediaItem = mediaItem
+
         // Stop current stream completely
         player.stop()
         player.clearMediaItems()
@@ -97,6 +121,23 @@ class SimpleMediaServiceHandler @Inject constructor(
             }
         } else {
             stopProgressUpdate()
+        }
+    }
+
+    /**
+     * Listen for metadata changes from ICY stream
+     * This captures "Now Playing" information from Icecast
+     */
+    override fun onMediaMetadataChanged(metadata: MediaMetadata) {
+        super.onMediaMetadataChanged(metadata)
+
+        // Try to get title from various metadata fields
+        val title = metadata.title?.toString()
+            ?: metadata.displayTitle?.toString()
+            ?: metadata.albumTitle?.toString()
+
+        if (!title.isNullOrBlank()) {
+            _icyMetadata.value = title
         }
     }
 

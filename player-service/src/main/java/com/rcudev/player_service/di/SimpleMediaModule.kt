@@ -7,11 +7,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.session.MediaSession
+import com.rcudev.player_service.service.LiveStreamPlayer
 import com.rcudev.player_service.service.SimpleMediaServiceHandler
 import com.rcudev.player_service.service.notification.SimpleMediaNotificationManager
 import dagger.Module
 import dagger.Provides
-import dagger.Reusable
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
@@ -32,7 +32,7 @@ class SimpleMediaModule {
     @Provides
     @Singleton
     @UnstableApi
-    fun providePlayer(
+    fun provideExoPlayer(
         @ApplicationContext context: Context,
         audioAttributes: AudioAttributes
     ): ExoPlayer =
@@ -44,29 +44,43 @@ class SimpleMediaModule {
 
     @Provides
     @Singleton
+    fun provideServiceHandler(
+        exoPlayer: ExoPlayer
+    ): SimpleMediaServiceHandler =
+        SimpleMediaServiceHandler(
+            player = exoPlayer
+        )
+
+    @Provides
+    @Singleton
+    @UnstableApi
+    fun provideLiveStreamPlayer(
+        exoPlayer: ExoPlayer,
+        serviceHandler: SimpleMediaServiceHandler
+    ): LiveStreamPlayer =
+        LiveStreamPlayer(
+            exoPlayer = exoPlayer,
+            onNeedMediaItem = { serviceHandler.getCurrentMediaItem() }
+        )
+
+    @Provides
+    @Singleton
+    @UnstableApi
     fun provideNotificationManager(
         @ApplicationContext context: Context,
-        player: ExoPlayer
+        liveStreamPlayer: LiveStreamPlayer
     ): SimpleMediaNotificationManager =
         SimpleMediaNotificationManager(
             context = context,
-            player = player
+            player = liveStreamPlayer.getWrappedPlayer()
         )
 
     @Provides
     @Singleton
+    @UnstableApi
     fun provideMediaSession(
         @ApplicationContext context: Context,
-        player: ExoPlayer
+        liveStreamPlayer: LiveStreamPlayer
     ): MediaSession =
-        MediaSession.Builder(context, player).build()
-
-    @Provides
-    @Singleton
-    fun provideServiceHandler(
-        player: ExoPlayer
-    ): SimpleMediaServiceHandler =
-        SimpleMediaServiceHandler(
-            player = player
-        )
+        MediaSession.Builder(context, liveStreamPlayer).build()
 }

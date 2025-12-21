@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.rcudev.simplemediaplayer.R
 import com.rcudev.simplemediaplayer.common.StreamConfig
 import com.rcudev.simplemediaplayer.common.ui.SimpleMediaViewModel
@@ -147,11 +148,15 @@ private fun BlurFMRadioScreen(vm: SimpleMediaViewModel) {
                 shape = RoundedCornerShape(24.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
-                Image(
-                    painter = painterResource(R.drawable.blur_fm_cover),
+                // Use AsyncImage from Coil to load artwork from iTunes
+                // Falls back to local drawable if URL is null or fails to load
+                AsyncImage(
+                    model = vm.artworkUrl ?: R.drawable.blur_fm_cover,
                     contentDescription = "Album Cover",
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(R.drawable.blur_fm_cover),
+                    error = painterResource(R.drawable.blur_fm_cover)
                 )
             }
 

@@ -1,7 +1,9 @@
 package com.rcudev.simplemediaplayer.common.ui
 
 import android.net.Uri
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +16,7 @@ import com.rcudev.player_service.service.SimpleMediaServiceHandler
 import com.rcudev.player_service.service.SimpleMediaState
 import com.rcudev.simplemediaplayer.common.StreamConfig
 import com.rcudev.simplemediaplayer.common.StreamPreferences
+import com.rcudev.simplemediaplayer.data.repository.NowPlayingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +29,7 @@ import javax.inject.Inject
 class SimpleMediaViewModel @Inject constructor(
     private val simpleMediaServiceHandler: SimpleMediaServiceHandler,
     private val streamPreferences: StreamPreferences,
+    private val nowPlayingRepository: NowPlayingRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -37,9 +41,12 @@ class SimpleMediaViewModel @Inject constructor(
     // Selected quality index persisted in preferences
     var selectedQualityIndex by savedStateHandle.saveable { mutableStateOf(StreamConfig.DEFAULT_INDEX) }
 
-    // Stream metadata (title/artist from ICY metadata if available)
+    // Stream metadata (title/artist/artwork from ICY metadata + iTunes)
     var streamTitle by savedStateHandle.saveable { mutableStateOf("Blur FM") }
-    var streamArtist by savedStateHandle.saveable { mutableStateOf("") }
+    var streamArtist by savedStateHandle.saveable { mutableStateOf("En vivo") }
+
+    // Artwork URL doesn't need to persist across process death
+    var artworkUrl by mutableStateOf<String?>(null)
 
     private val _uiState = MutableStateFlow<UIState>(UIState.Initial)
     val uiState = _uiState.asStateFlow()
@@ -51,15 +58,31 @@ class SimpleMediaViewModel @Inject constructor(
 
             loadData()
 
-            simpleMediaServiceHandler.simpleMediaState.collect { mediaState ->
-                when (mediaState) {
-                    is SimpleMediaState.Buffering -> calculateProgressValues(mediaState.progress)
-                    SimpleMediaState.Initial -> _uiState.value = UIState.Initial
-                    is SimpleMediaState.Playing -> isPlaying = mediaState.isPlaying
-                    is SimpleMediaState.Progress -> calculateProgressValues(mediaState.progress)
-                    is SimpleMediaState.Ready -> {
-                        duration = mediaState.duration
-                        _uiState.value = UIState.Ready
+            // Listen to player state
+            launch {
+                simpleMediaServiceHandler.simpleMediaState.collect { mediaState ->
+                    when (mediaState) {
+                        is SimpleMediaState.Buffering -> calculateProgressValues(mediaState.progress)
+                        SimpleMediaState.Initial -> _uiState.value = UIState.Initial
+                        is SimpleMediaState.Playing -> isPlaying = mediaState.isPlaying
+                        is SimpleMediaState.Progress -> calculateProgressValues(mediaState.progress)
+                        is SimpleMediaState.Ready -> {
+                            duration = mediaState.duration
+                            _uiState.value = UIState.Ready
+                        }
+                    }
+                }
+            }
+
+            // Listen to ICY metadata (Now Playing)
+            launch {
+                simpleMediaServiceHandler.icyMetadata.collect { rawMetadata ->
+                    if (!rawMetadata.isNullOrBlank()) {
+                        // Process metadata and fetch from iTunes
+                        val nowPlaying = nowPlayingRepository.processMetadata(rawMetadata)
+                        streamTitle = nowPlaying.title
+                        streamArtist = nowPlaying.artist
+                        artworkUrl = nowPlaying.artworkUrl
                     }
                 }
             }
@@ -128,6 +151,9 @@ class SimpleMediaViewModel @Inject constructor(
         if (index < 0 || index >= StreamConfig.OPTIONS.size) return@launch
         selectedQualityIndex = index
         streamPreferences.setSelectedIndex(index)
+
+        // Clear metadata cache when changing streams
+        nowPlayingRepository.clearCache()
 
         val (label, url) = StreamConfig.OPTIONS[index]
         val mediaItem = MediaItem.Builder()
