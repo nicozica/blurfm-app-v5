@@ -10,10 +10,10 @@ object StreamConfig {
     // Ultra: 32 kbps AAC+ (ultra light)
     // All URLs redirect (302) to icecast.blurfm.com for server flexibility
     val OPTIONS: List<Pair<String, String>> = listOf(
-        Pair("Standard", "https://stream.blurfm.com/standard"),
-        Pair("High", "https://stream.blurfm.com/high"),
-        Pair("Data Saver", "https://stream.blurfm.com/datasaver"),
-        Pair("Ultra", "https://stream.blurfm.com/ultra")
+        Pair("Standard", "https://icecast.blurfm.com/standard"),
+        Pair("High", "https://icecast.blurfm.com/high"),
+        Pair("Data Saver", "https://icecast.blurfm.com/datasaver"),
+        Pair("Ultra", "https://icecast.blurfm.com/ultra")
     )
 
     // Default selection: Standard (128 kbps)
@@ -22,4 +22,3 @@ object StreamConfig {
     // Optional: station artwork (can be null)
     val ARTWORK_URI: Uri? = null
 }
-

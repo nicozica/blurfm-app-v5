@@ -2,6 +2,7 @@ package com.rcudev.simplemediaplayer.data.repository
 
 import android.util.Log
 import com.rcudev.simplemediaplayer.data.api.ITunesApi
+import com.rcudev.simplemediaplayer.data.model.IceSource
 import com.rcudev.simplemediaplayer.data.model.NowPlaying
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,13 +15,35 @@ import javax.inject.Singleton
  */
 @Singleton
 class NowPlayingRepository @Inject constructor(
-    private val iTunesApi: ITunesApi
+    private val iTunesApi: ITunesApi,
+    private val remoteDataSource: NowPlayingRemoteDataSource
 ) {
     private val TAG = "NowPlayingRepository"
 
     // Cache to avoid spamming iTunes API
     private var lastQuery: String? = null
     private var cachedNowPlaying: NowPlaying? = null
+
+    // Cache for last remote source title to avoid redundant fetch/parse
+    private var lastRemoteTitle: String? = null
+    private var cachedRemoteNowPlaying: NowPlaying? = null
+
+    /**
+     * Fetch remote Now Playing information from the status JSON
+     */
+    suspend fun fetchRemoteNowPlaying(statusUrl: String): NowPlaying? {
+        val source: IceSource = remoteDataSource.fetchCurrentSource(statusUrl) ?: return null
+        val raw = source.title ?: return null
+
+        if (raw == lastRemoteTitle && cachedRemoteNowPlaying != null) {
+            return cachedRemoteNowPlaying
+        }
+
+        val nowPlaying = processMetadata(raw)
+        lastRemoteTitle = raw
+        cachedRemoteNowPlaying = nowPlaying
+        return nowPlaying
+    }
 
     /**
      * Process ICY metadata and fetch track info from iTunes
@@ -132,4 +155,3 @@ class NowPlayingRepository @Inject constructor(
         cachedNowPlaying = null
     }
 }
-

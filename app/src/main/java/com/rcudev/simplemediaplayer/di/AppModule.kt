@@ -2,6 +2,7 @@ package com.rcudev.simplemediaplayer.di
 
 import android.content.Context
 import com.rcudev.simplemediaplayer.common.StreamPreferences
+import com.rcudev.simplemediaplayer.data.api.BlurFmApi
 import com.rcudev.simplemediaplayer.data.api.ITunesApi
 import dagger.Module
 import dagger.Provides
@@ -44,5 +45,14 @@ object AppModule {
     @Singleton
     fun provideITunesApi(retrofit: Retrofit): ITunesApi =
         retrofit.create(ITunesApi::class.java)
-}
 
+    @Provides
+    @Singleton
+    fun provideBlurFmApi(okHttpClient: OkHttpClient): BlurFmApi =
+        Retrofit.Builder()
+            .baseUrl("https://icecast.blurfm.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(BlurFmApi::class.java)
+}

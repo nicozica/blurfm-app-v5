@@ -18,9 +18,11 @@ import com.rcudev.simplemediaplayer.common.StreamConfig
 import com.rcudev.simplemediaplayer.common.StreamPreferences
 import com.rcudev.simplemediaplayer.data.repository.NowPlayingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -48,6 +50,9 @@ class SimpleMediaViewModel @Inject constructor(
     // Artwork URL doesn't need to persist across process death
     var artworkUrl by mutableStateOf<String?>(null)
 
+    private var nowPlayingRefreshJob: Job? = null
+    private var latestRawMetadata: String? = null
+
     private val _uiState = MutableStateFlow<UIState>(UIState.Initial)
     val uiState = _uiState.asStateFlow()
 
@@ -63,8 +68,12 @@ class SimpleMediaViewModel @Inject constructor(
                 simpleMediaServiceHandler.simpleMediaState.collect { mediaState ->
                     when (mediaState) {
                         is SimpleMediaState.Buffering -> calculateProgressValues(mediaState.progress)
-                        SimpleMediaState.Initial -> _uiState.value = UIState.Initial
-                        is SimpleMediaState.Playing -> isPlaying = mediaState.isPlaying
+                        SimpleMediaState.Initial -> {
+                            _uiState.value = UIState.Initial
+                        }
+                        is SimpleMediaState.Playing -> {
+                            isPlaying = mediaState.isPlaying
+                        }
                         is SimpleMediaState.Progress -> calculateProgressValues(mediaState.progress)
                         is SimpleMediaState.Ready -> {
                             duration = mediaState.duration
@@ -78,18 +87,58 @@ class SimpleMediaViewModel @Inject constructor(
             launch {
                 simpleMediaServiceHandler.icyMetadata.collect { rawMetadata ->
                     if (!rawMetadata.isNullOrBlank()) {
-                        // Process metadata and fetch from iTunes
-                        val nowPlaying = nowPlayingRepository.processMetadata(rawMetadata)
-                        streamTitle = nowPlaying.title
-                        streamArtist = nowPlaying.artist
-                        artworkUrl = nowPlaying.artworkUrl
+                        latestRawMetadata = rawMetadata
+                        refreshNowPlaying(rawMetadata)
                     }
                 }
+            }
+
+            // Always keep the refresh loop running so metadata updates even if not playing
+            startNowPlayingRefresh()
+        }
+    }
+
+    private fun statusUrls(): List<String> = listOf(
+        "https://www.blurfm.com/icecast-proxy.php",
+        "https://icecast.blurfm.com/status-json.xsl"
+    )
+
+    private fun startNowPlayingRefresh() {
+        if (nowPlayingRefreshJob?.isActive == true) return
+        nowPlayingRefreshJob = viewModelScope.launch {
+            while (true) {
+                // Prefer remote status JSON to update even if not playing. Try proxy then direct.
+                val remote = statusUrls().firstNotNullOfOrNull { url ->
+                    nowPlayingRepository.fetchRemoteNowPlaying(url)
+                }
+                if (remote != null) {
+                    streamTitle = remote.title
+                    streamArtist = remote.artist
+                    artworkUrl = remote.artworkUrl
+                    latestRawMetadata = remote.rawMetadata
+                } else {
+                    latestRawMetadata?.let { refreshNowPlaying(it) }
+                }
+                // Poll every 5 seconds
+                delay(5_000)
             }
         }
     }
 
+    private fun stopNowPlayingRefresh() {
+        nowPlayingRefreshJob?.cancel()
+        nowPlayingRefreshJob = null
+    }
+
+    private suspend fun refreshNowPlaying(rawMetadata: String) {
+        val nowPlaying = nowPlayingRepository.processMetadata(rawMetadata)
+        streamTitle = nowPlaying.title
+        streamArtist = nowPlaying.artist
+        artworkUrl = nowPlaying.artworkUrl
+    }
+
     override fun onCleared() {
+        stopNowPlayingRefresh()
         viewModelScope.launch {
             simpleMediaServiceHandler.onPlayerEvent(PlayerEvent.Stop)
         }
@@ -154,6 +203,9 @@ class SimpleMediaViewModel @Inject constructor(
 
         // Clear metadata cache when changing streams
         nowPlayingRepository.clearCache()
+
+        // Reset latest metadata so refresh loop waits for new data
+        latestRawMetadata = null
 
         val (label, url) = StreamConfig.OPTIONS[index]
         val mediaItem = MediaItem.Builder()
