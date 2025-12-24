@@ -44,23 +44,23 @@ class SimpleMediaModule {
 
     @Provides
     @Singleton
-    fun provideServiceHandler(
+    @UnstableApi
+    fun provideLiveStreamPlayer(
         exoPlayer: ExoPlayer
-    ): SimpleMediaServiceHandler =
-        SimpleMediaServiceHandler(
-            player = exoPlayer
+    ): LiveStreamPlayer =
+        LiveStreamPlayer(
+            exoPlayer = exoPlayer,
+            onNeedMediaItem = { null } // Will be set later by the handler
         )
 
     @Provides
     @Singleton
     @UnstableApi
-    fun provideLiveStreamPlayer(
-        exoPlayer: ExoPlayer,
-        serviceHandler: SimpleMediaServiceHandler
-    ): LiveStreamPlayer =
-        LiveStreamPlayer(
-            exoPlayer = exoPlayer,
-            onNeedMediaItem = { serviceHandler.getCurrentMediaItem() }
+    fun provideServiceHandler(
+        liveStreamPlayer: LiveStreamPlayer
+    ): SimpleMediaServiceHandler =
+        SimpleMediaServiceHandler(
+            player = liveStreamPlayer
         )
 
     @Provides

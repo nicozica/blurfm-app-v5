@@ -6,7 +6,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Metadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.extractor.metadata.icy.IcyInfo
+import androidx.media3.exoplayer.metadata.MetadataOutput
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -138,22 +138,6 @@ class SimpleMediaServiceHandler @Inject constructor(
 
         if (!title.isNullOrBlank()) {
             _icyMetadata.value = title
-        }
-    }
-
-    /**
-     * Capture ICY metadata events (more reliable for live streams)
-     */
-    override fun onMetadata(metadata: Metadata) {
-        for (i in 0 until metadata.length()) {
-            when (val entry = metadata[i]) {
-                is IcyInfo -> {
-                    val title = entry.title
-                    if (!title.isNullOrBlank()) {
-                        _icyMetadata.value = title
-                    }
-                }
-            }
         }
     }
 
